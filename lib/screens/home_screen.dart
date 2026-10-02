@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:diario_de_contas/models/expense.dart';
 import 'package:diario_de_contas/providers/expenses_provider.dart';
 import 'package:diario_de_contas/screens/expense_form_screen.dart';
+import 'package:diario_de_contas/services/pdf_service.dart';
 import 'package:diario_de_contas/utils/formatters.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -30,6 +31,86 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _downloadCurrentPdf(BuildContext context) async {
+    await _downloadPdf(
+      context,
+      title: 'Despesas de ${monthLabel(provider.selectedMonth)}',
+      expenses: provider.currentExpenses,
+      months: [provider.selectedMonth],
+    );
+  }
+
+  Future<void> _downloadPersonPdf(
+    BuildContext context,
+    String person,
+    List<Expense> expenses,
+  ) async {
+    await _downloadPdf(
+      context,
+      title: 'Despesas de $person - ${monthLabel(provider.selectedMonth)}',
+      expenses: expenses,
+      months: [provider.selectedMonth],
+      person: person,
+    );
+  }
+
+  Future<void> _downloadPreviousPdf(BuildContext context) async {
+    final available = provider.previousMonths();
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ainda não há meses anteriores salvos.')),
+      );
+      return;
+    }
+    final selected = await showDialog<List<DateTime>>(
+      context: context,
+      builder: (dialogContext) => _PreviousMonthsDialog(months: available),
+    );
+    if (selected == null || selected.isEmpty || !context.mounted) return;
+    await _downloadPdf(
+      context,
+      title: 'Despesas de meses anteriores',
+      expenses: provider.expensesForMonths(selected),
+      months: selected,
+    );
+  }
+
+  Future<void> _downloadPdf(
+    BuildContext context, {
+    required String title,
+    required List<Expense> expenses,
+    required List<DateTime> months,
+    String? person,
+  }) async {
+    if (expenses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Não há lançamentos para gerar este PDF.')),
+      );
+      return;
+    }
+    try {
+      await PdfService().shareReport(
+        title: title,
+        expenses: expenses,
+        months: months,
+        person: person,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('PDF preparado para baixar ou compartilhar.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível gerar o PDF.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -47,6 +128,34 @@ class HomeScreen extends StatelessWidget {
                 onPressed: () => _pickMonth(context),
                 icon: const Icon(Icons.calendar_today_outlined),
                 tooltip: 'Escolher mês',
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Relatórios em PDF',
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                onSelected: (value) {
+                  if (value == 'current') _downloadCurrentPdf(context);
+                  if (value == 'previous') _downloadPreviousPdf(context);
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'current',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.download_outlined),
+                      title: Text('Baixar PDF do mês'),
+                      subtitle: Text('Todas as pessoas'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'previous',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.history),
+                      title: Text('Meses anteriores'),
+                      subtitle: Text('Selecionar um ou mais meses'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -87,6 +196,11 @@ class HomeScreen extends StatelessWidget {
                       expenses: entry.value,
                       onEdit: (expense) => _openForm(context, expense),
                       onDelete: (expense) => _confirmDelete(context, expense),
+                      onDownload: () => _downloadPersonPdf(
+                        context,
+                        entry.key,
+                        entry.value,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 28),
@@ -214,12 +328,14 @@ class _PersonCard extends StatelessWidget {
       {required this.person,
       required this.expenses,
       required this.onEdit,
-      required this.onDelete});
+      required this.onDelete,
+      required this.onDownload});
 
   final String person;
   final List<Expense> expenses;
   final ValueChanged<Expense> onEdit;
   final ValueChanged<Expense> onDelete;
+  final VoidCallback onDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -247,6 +363,24 @@ class _PersonCard extends StatelessWidget {
                             fontSize: 18, fontWeight: FontWeight.w700))),
                 Text(money(total),
                     style: const TextStyle(fontWeight: FontWeight.w800)),
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: 'Opções de $person',
+                  onSelected: (value) {
+                    if (value == 'download') onDownload();
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'download',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.picture_as_pdf_outlined),
+                        title: Text('Baixar PDF'),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
             const Divider(height: 24),
@@ -370,6 +504,68 @@ class _EmptyState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PreviousMonthsDialog extends StatefulWidget {
+  const _PreviousMonthsDialog({required this.months});
+
+  final List<DateTime> months;
+
+  @override
+  State<_PreviousMonthsDialog> createState() => _PreviousMonthsDialogState();
+}
+
+class _PreviousMonthsDialogState extends State<_PreviousMonthsDialog> {
+  final Set<String> _selected = {};
+
+  String _key(DateTime month) => '${month.year}-${month.month}';
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Meses anteriores'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Selecione um ou mais meses para incluir no PDF.'),
+            const SizedBox(height: 12),
+            ...widget.months.map((month) => CheckboxListTile(
+                  value: _selected.contains(_key(month)),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(monthLabel(month)),
+                  onChanged: (checked) => setState(() {
+                    if (checked == true) {
+                      _selected.add(_key(month));
+                    } else {
+                      _selected.remove(_key(month));
+                    }
+                  }),
+                )),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.pop(
+                    context,
+                    widget.months
+                        .where((month) => _selected.contains(_key(month)))
+                        .toList(),
+                  ),
+          child: const Text('Gerar PDF'),
+        ),
+      ],
     );
   }
 }

@@ -39,11 +39,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   List<double> parseAmounts(String raw) {
     final result = <double>[];
-    for (final chunk
-        in raw
-            .replaceAll(';', ' ')
-            .replaceAll('/', ' ')
-            .split(RegExp(r'\s+'))) {
+    for (final chunk in raw
+        .replaceAll(';', ' ')
+        .replaceAll('/', ' ')
+        .split(RegExp(r'\s+'))) {
       if (chunk.isEmpty) {
         continue;
       }
@@ -79,84 +78,86 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(
-        widget.expense == null ? 'Novo lançamento' : 'Editar lançamento',
-      ),
-    ),
-    body: Form(
-      key: formKey,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-        children: [
-          Text('Competência', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFCF7),
-              border: Border.all(color: const Color(0xFFE5DED1)),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_month_outlined,
-                    color: Color(0xFFB88632)),
-                const SizedBox(width: 12),
-                Text(
-                  monthLabel(widget.provider.selectedMonth),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+        appBar: AppBar(
+          title: Text(
+            widget.expense == null ? 'Novo lançamento' : 'Editar lançamento',
+          ),
+        ),
+        body: Form(
+          key: formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+            children: [
+              Text('Competência',
+                  style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFCF7),
+                  border: Border.all(color: const Color(0xFFE5DED1)),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-              ],
-            ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_month_outlined,
+                        color: Color(0xFFB88632)),
+                    const SizedBox(width: 12),
+                    Text(
+                      monthLabel(widget.provider.selectedMonth),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              TextFormField(
+                controller: personController,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Pessoa',
+                  hintText: 'Ex.: Pai, Mãe, João',
+                ),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Informe a pessoa' : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: accountController,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Banco ou cartão',
+                  hintText: 'Ex.: Itaú, Nubank, Carrefour',
+                ),
+                validator: (v) => v == null || v.trim().isEmpty
+                    ? 'Informe o banco ou cartão'
+                    : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: amountsController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Valores',
+                  hintText: 'Ex.: 35,90 120,50 / 80',
+                  helperText: 'Separe por vírgula, espaço ou barra.',
+                ),
+                validator: (v) => v == null || parseAmounts(v).isEmpty
+                    ? 'Informe valores válidos'
+                    : null,
+              ),
+              const SizedBox(height: 28),
+              FilledButton.icon(
+                onPressed: submit,
+                icon: const Icon(Icons.check),
+                label: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Text('Salvar lançamento'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          TextFormField(
-            controller: personController,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Pessoa',
-              hintText: 'Ex.: Pai, Mãe, João',
-            ),
-            validator: (v) =>
-                v == null || v.trim().isEmpty ? 'Informe a pessoa' : null,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: accountController,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Banco ou cartão',
-              hintText: 'Ex.: Itaú, Nubank, Carrefour',
-            ),
-            validator: (v) => v == null || v.trim().isEmpty
-                ? 'Informe o banco ou cartão'
-                : null,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: amountsController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Valores',
-              hintText: 'Ex.: 35,90 120,50 / 80',
-              helperText: 'Separe por vírgula, espaço ou barra.',
-            ),
-            validator: (v) => v == null || parseAmounts(v).isEmpty
-                ? 'Informe valores válidos'
-                : null,
-          ),
-          const SizedBox(height: 28),
-          FilledButton.icon(
-            onPressed: submit,
-            icon: const Icon(Icons.check),
-            label: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Text('Salvar lançamento'),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }

@@ -77,4 +77,23 @@ class ExpensesProvider extends ChangeNotifier {
     }
     return result;
   }
+
+  List<DateTime> previousMonths() {
+    final currentKey = monthKey(selectedMonth);
+    final months = <String, DateTime>{};
+    for (final expense in _expenses) {
+      if (expense.monthKey.compareTo(currentKey) < 0) {
+        months[expense.monthKey] = expense.month;
+      }
+    }
+    final result = months.values.toList()..sort((a, b) => b.compareTo(a));
+    return result;
+  }
+
+  List<Expense> expensesForMonths(Iterable<DateTime> months) {
+    final keys = months.map(monthKey).toSet();
+    return _expenses
+        .where((expense) => keys.contains(expense.monthKey))
+        .toList();
+  }
 }
