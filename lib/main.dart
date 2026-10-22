@@ -1,16 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:diario_de_contas/providers/expenses_provider.dart';
 import 'package:diario_de_contas/screens/home_screen.dart';
+import 'package:diario_de_contas/services/auth_service.dart';
+import 'package:diario_de_contas/services/firestore_backup_service.dart';
+import 'firebase_options.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   final provider = ExpensesProvider();
-  runApp(DiarioDeContasApp(provider: provider));
+  final authService = AuthService();
+  await authService.initialize();
+  final backupService = FirestoreBackupService(authService: authService);
+  runApp(DiarioDeContasApp(
+    provider: provider,
+    authService: authService,
+    backupService: backupService,
+  ));
 }
 
 class DiarioDeContasApp extends StatelessWidget {
-  const DiarioDeContasApp({super.key, required this.provider});
+  const DiarioDeContasApp({
+    super.key,
+    required this.provider,
+    this.authService,
+    this.backupService,
+  });
   final ExpensesProvider provider;
+  final AuthService? authService;
+  final FirestoreBackupService? backupService;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -81,14 +102,24 @@ class DiarioDeContasApp extends StatelessWidget {
             ),
           ),
         ),
-        home: _SplashScreen(provider: provider),
+        home: _SplashScreen(
+          provider: provider,
+          authService: authService,
+          backupService: backupService,
+        ),
       );
 }
 
 class _SplashScreen extends StatefulWidget {
-  const _SplashScreen({required this.provider});
+  const _SplashScreen({
+    required this.provider,
+    this.authService,
+    this.backupService,
+  });
 
   final ExpensesProvider provider;
+  final AuthService? authService;
+  final FirestoreBackupService? backupService;
 
   @override
   State<_SplashScreen> createState() => _SplashScreenState();
@@ -114,7 +145,11 @@ class _SplashScreenState extends State<_SplashScreen>
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (_) => HomeScreen(provider: widget.provider),
+            builder: (_) => HomeScreen(
+              provider: widget.provider,
+              authService: widget.authService,
+              backupService: widget.backupService,
+            ),
           ),
         );
       }

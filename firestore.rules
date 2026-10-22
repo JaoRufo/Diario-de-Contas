@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/expenses/{expenseId} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+
+      function isValidExpense(data) {
+        return data.keys().hasOnly([
+            'id', 'person', 'account', 'amounts', 'month'
+          ])
+          && data.id == expenseId
+          && data.id is string
+          && data.person is string
+          && data.person.size() > 0
+          && data.account is string
+          && data.account.size() > 0
+          && data.amounts is list
+          && data.amounts.size() > 0
+          && data.month is string
+          && data.month.matches('^[0-9]{4}-(0[1-9]|1[0-2])$');
+      }
+
+      allow read: if isOwner();
+      allow create: if isOwner() && isValidExpense(request.resource.data);
+      allow update: if isOwner() && isValidExpense(request.resource.data);
+      allow delete: if isOwner();
+    }
+  }
+}

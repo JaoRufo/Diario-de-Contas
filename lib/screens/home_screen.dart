@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:diario_de_contas/models/expense.dart';
 import 'package:diario_de_contas/providers/expenses_provider.dart';
 import 'package:diario_de_contas/screens/expense_form_screen.dart';
+import 'package:diario_de_contas/services/auth_service.dart';
+import 'package:diario_de_contas/services/firestore_backup_service.dart';
 import 'package:diario_de_contas/services/pdf_service.dart';
 import 'package:diario_de_contas/utils/formatters.dart';
 
@@ -35,9 +37,16 @@ String _pdfSlug(String value) {
 }
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.provider});
+  const HomeScreen({
+    super.key,
+    required this.provider,
+    this.authService,
+    this.backupService,
+  });
 
   final ExpensesProvider provider;
+  final AuthService? authService;
+  final FirestoreBackupService? backupService;
 
   Future<void> _pickMonth(BuildContext context) async {
     final result = await showDatePicker(
@@ -90,10 +99,8 @@ class HomeScreen extends StatelessWidget {
         .where((entry) => selectedPeople.contains(entry.key))
         .expand((entry) => entry.value)
         .toList();
-    final selectedNames = people.keys
-        .where(selectedPeople.contains)
-        .map(_pdfSlug)
-        .join('-');
+    final selectedNames =
+        people.keys.where(selectedPeople.contains).map(_pdfSlug).join('-');
     final filename =
         'despesas-selecionadas-${_pdfSlug(monthLabel(provider.selectedMonth))}-$selectedNames.pdf';
     await _downloadPdf(
@@ -141,7 +148,29 @@ class HomeScreen extends StatelessWidget {
       );
       return;
     }
+    final loadingDialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              SizedBox(width: 16),
+              Expanded(child: Text('Preparando PDF...')),
+            ],
+          ),
+        ),
+      ),
+    );
+
     try {
+      await Future<void>.delayed(Duration.zero);
       await PdfService().shareReport(
         title: title,
         expenses: expenses,
@@ -161,6 +190,11 @@ class HomeScreen extends StatelessWidget {
           const SnackBar(content: Text('Não foi possível gerar o PDF.')),
         );
       }
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      await loadingDialog;
     }
   }
 
@@ -222,6 +256,12 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              if (authService != null)
+                _AuthMenu(
+                  authService: authService!,
+                  backupService: backupService ??
+                      FirestoreBackupService(authService: authService!),
+                ),
             ],
           ),
           floatingActionButton: FloatingActionButton.extended(
@@ -293,6 +333,151 @@ class HomeScreen extends StatelessWidget {
       ),
     );
     if (confirmed == true) await provider.remove(item.id);
+  }
+}
+
+class _AuthMenu extends StatelessWidget {
+  const _AuthMenu({
+    required this.authService,
+    required this.backupService,
+  });
+
+  final AuthService authService;
+  final FirestoreBackupService backupService;
+
+  Future<void> _handleSelection(BuildContext context, String value) async {
+    if (value == 'signIn') {
+      await authService.signInWithGoogle();
+    } else if (value == 'signOut') {
+      await authService.signOut();
+    } else if (value == 'backup') {
+      await _runBackup(context);
+      return;
+    }
+
+    if (!context.mounted) return;
+    final error = authService.errorMessage;
+    if (error != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
+      authService.clearError();
+    }
+  }
+
+  Future<void> _runBackup(BuildContext context) async {
+    final loadingDialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              SizedBox(width: 16),
+              Expanded(child: Text('Fazendo backup na nuvem...')),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await Future<void>.delayed(Duration.zero);
+      final result = await backupService.backupLocalExpenses();
+      if (!context.mounted) return;
+      final backupError = backupService.errorMessage;
+      final message = backupError == null
+          ? result.summary
+          : '${result.summary} $backupError';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+      backupService.clearError();
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      await loadingDialog;
+    }
+  }
+
+  Widget _profileAvatar(String? photoUrl, {double radius = 16}) {
+    if (photoUrl == null || photoUrl.isEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        child: const Icon(Icons.person_outline),
+      );
+    }
+    return CircleAvatar(
+      radius: radius,
+      child: ClipOval(
+        child: Image.network(
+          photoUrl,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Icon(Icons.person_outline),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([authService, backupService]),
+      builder: (context, _) {
+        final user = authService.currentUser;
+        return PopupMenuButton<String>(
+          enabled: !authService.isBusy && !backupService.isBusy,
+          tooltip: user == null ? 'Entrar com Google' : 'Conta Google',
+          icon: user == null
+              ? const Icon(Icons.account_circle_outlined)
+              : _profileAvatar(user.photoURL),
+          onSelected: (value) => _handleSelection(context, value),
+          itemBuilder: (_) => [
+            if (user != null)
+              PopupMenuItem<String>(
+                enabled: false,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: _profileAvatar(user.photoURL, radius: 20),
+                  title: Text(user.displayName ?? 'Conta conectada'),
+                  subtitle: Text(user.email ?? 'E-mail não disponível'),
+                ),
+              ),
+            if (user != null)
+              PopupMenuItem<String>(
+                value: 'backup',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.cloud_upload_outlined),
+                  title: const Text('Fazer backup na nuvem'),
+                  subtitle: Text(
+                    backupService.isBusy
+                        ? 'Enviando lançamentos...'
+                        : 'Firestore',
+                  ),
+                ),
+              ),
+            PopupMenuItem<String>(
+              value: user == null ? 'signIn' : 'signOut',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  user == null ? Icons.login : Icons.logout,
+                ),
+                title: Text(user == null ? 'Entrar com Google' : 'Sair'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

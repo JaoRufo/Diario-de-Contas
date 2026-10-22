@@ -1,0 +1,28 @@
+{
+    "firestore": {
+        "rules": "firestore.rules"
+    },
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "diario-de-contas-app",
+                    "appId": "1:800495952989:android:620a3763f1fa89878219b4",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "diario-de-contas-app",
+                    "configurations": {
+                        "android": "1:800495952989:android:620a3763f1fa89878219b4",
+                        "ios": "1:800495952989:ios:2185285ab870f13e8219b4",
+                        "macos": "1:800495952989:ios:2185285ab870f13e8219b4",
+                        "web": "1:800495952989:web:85b7a85e9deb33a38219b4",
+                        "windows": "1:800495952989:web:0a52f8d5319bee9a8219b4"
+                    }
+                }
+            }
+        }
+    }
+}
