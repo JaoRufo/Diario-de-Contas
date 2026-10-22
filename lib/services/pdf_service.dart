@@ -18,6 +18,7 @@ class PdfService {
     required List<Expense> expenses,
     required List<DateTime> months,
     String? person,
+    String? filename,
   }) async {
     if (expenses.isEmpty) return;
     final bytes = await buildReport(
@@ -26,8 +27,10 @@ class PdfService {
       months: months,
       person: person,
     );
-    final filename = _filename(title);
-    await Printing.sharePdf(bytes: bytes, filename: filename);
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: filename ?? _filename(title),
+    );
   }
 
   Future<Uint8List> buildReport({

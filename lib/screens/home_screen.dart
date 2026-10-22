@@ -5,6 +5,35 @@ import 'package:diario_de_contas/screens/expense_form_screen.dart';
 import 'package:diario_de_contas/services/pdf_service.dart';
 import 'package:diario_de_contas/utils/formatters.dart';
 
+String _pdfSlug(String value) {
+  var normalized = value.toLowerCase();
+  const accents = {
+    'á': 'a',
+    'à': 'a',
+    'ã': 'a',
+    'â': 'a',
+    'ä': 'a',
+    'é': 'e',
+    'ê': 'e',
+    'ë': 'e',
+    'í': 'i',
+    'ï': 'i',
+    'ó': 'o',
+    'ô': 'o',
+    'õ': 'o',
+    'ö': 'o',
+    'ú': 'u',
+    'ü': 'u',
+    'ç': 'c',
+  };
+  for (final entry in accents.entries) {
+    normalized = normalized.replaceAll(entry.key, entry.value);
+  }
+  return normalized
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+}
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, required this.provider});
 
@@ -61,25 +90,18 @@ class HomeScreen extends StatelessWidget {
         .where((entry) => selectedPeople.contains(entry.key))
         .expand((entry) => entry.value)
         .toList();
+    final selectedNames = people.keys
+        .where(selectedPeople.contains)
+        .map(_pdfSlug)
+        .join('-');
+    final filename =
+        'despesas-selecionadas-${_pdfSlug(monthLabel(provider.selectedMonth))}-$selectedNames.pdf';
     await _downloadPdf(
       context,
       title: 'Despesas selecionadas - ${monthLabel(provider.selectedMonth)}',
       expenses: selectedExpenses,
       months: [provider.selectedMonth],
-    );
-  }
-
-  Future<void> _downloadPersonPdf(
-    BuildContext context,
-    String person,
-    List<Expense> expenses,
-  ) async {
-    await _downloadPdf(
-      context,
-      title: 'Despesas de $person - ${monthLabel(provider.selectedMonth)}',
-      expenses: expenses,
-      months: [provider.selectedMonth],
-      person: person,
+      filename: filename,
     );
   }
 
@@ -110,6 +132,7 @@ class HomeScreen extends StatelessWidget {
     required List<Expense> expenses,
     required List<DateTime> months,
     String? person,
+    String? filename,
   }) async {
     if (expenses.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,6 +147,7 @@ class HomeScreen extends StatelessWidget {
         expenses: expenses,
         months: months,
         person: person,
+        filename: filename,
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -237,11 +261,6 @@ class HomeScreen extends StatelessWidget {
                       expenses: entry.value,
                       onEdit: (expense) => _openForm(context, expense),
                       onDelete: (expense) => _confirmDelete(context, expense),
-                      onDownload: () => _downloadPersonPdf(
-                        context,
-                        entry.key,
-                        entry.value,
-                      ),
                     ),
                   ),
                   const SizedBox(height: 28),
@@ -369,14 +388,12 @@ class _PersonCard extends StatelessWidget {
       {required this.person,
       required this.expenses,
       required this.onEdit,
-      required this.onDelete,
-      required this.onDownload});
+      required this.onDelete});
 
   final String person;
   final List<Expense> expenses;
   final ValueChanged<Expense> onEdit;
   final ValueChanged<Expense> onDelete;
-  final VoidCallback onDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -404,24 +421,6 @@ class _PersonCard extends StatelessWidget {
                             fontSize: 18, fontWeight: FontWeight.w700))),
                 Text(money(total),
                     style: const TextStyle(fontWeight: FontWeight.w800)),
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.more_vert),
-                  tooltip: 'Opções de $person',
-                  onSelected: (value) {
-                    if (value == 'download') onDownload();
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'download',
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.picture_as_pdf_outlined),
-                        title: Text('Baixar PDF'),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
             const Divider(height: 24),
