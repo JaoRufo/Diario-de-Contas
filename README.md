@@ -206,3 +206,17 @@ lib/
 firestore.rules
 firebase.json
 ```
+
+## Segurança da configuração Firebase
+
+`lib/firebase_options.dart` e `android/app/google-services.json` são arquivos gerados pelo FlutterFire/Firebase e estão ignorados pelo Git. Eles devem existir apenas no ambiente local ou ser fornecidos pelo processo seguro de configuração do projeto.
+
+Para configurar um clone novo, com o FlutterFire CLI autenticado:
+
+```powershell
+flutterfire configure --project=diario-de-contas-app
+```
+
+Depois, baixe o `google-services.json` do app Android no Firebase Console e salve-o em `android/app/google-services.json`.
+
+As chaves `AIza...` são chaves client-side do Firebase, não tokens de servidor. Ainda assim, as chaves que apareceram no histórico público devem ser tratadas como comprometidas: restrinja-as por API e aplicativo no Google Cloud Console e, preferencialmente, crie novas chaves para Android, Web/Desktop e iOS. A rotação não é substituída pela remoção dos arquivos do Git.
