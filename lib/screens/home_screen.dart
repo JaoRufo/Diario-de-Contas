@@ -40,6 +40,35 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _downloadSelectedPeoplePdf(BuildContext context) async {
+    final people = provider.groupedByPerson();
+    if (people.isEmpty) {
+      await _downloadCurrentPdf(context);
+      return;
+    }
+
+    final selectedPeople = await showDialog<Set<String>>(
+      context: context,
+      builder: (_) => _PeopleSelectionDialog(
+        people: people.keys.toList(),
+      ),
+    );
+    if (selectedPeople == null || selectedPeople.isEmpty || !context.mounted) {
+      return;
+    }
+
+    final selectedExpenses = people.entries
+        .where((entry) => selectedPeople.contains(entry.key))
+        .expand((entry) => entry.value)
+        .toList();
+    await _downloadPdf(
+      context,
+      title: 'Despesas selecionadas - ${monthLabel(provider.selectedMonth)}',
+      expenses: selectedExpenses,
+      months: [provider.selectedMonth],
+    );
+  }
+
   Future<void> _downloadPersonPdf(
     BuildContext context,
     String person,
@@ -134,6 +163,9 @@ class HomeScreen extends StatelessWidget {
                 icon: const Icon(Icons.picture_as_pdf_outlined),
                 onSelected: (value) {
                   if (value == 'current') _downloadCurrentPdf(context);
+                  if (value == 'selected') {
+                    _downloadSelectedPeoplePdf(context);
+                  }
                   if (value == 'previous') _downloadPreviousPdf(context);
                 },
                 itemBuilder: (_) => const [
@@ -144,6 +176,15 @@ class HomeScreen extends StatelessWidget {
                       leading: Icon(Icons.download_outlined),
                       title: Text('Baixar PDF do mês'),
                       subtitle: Text('Todas as pessoas'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'selected',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.checklist_outlined),
+                      title: Text('Selecionar Contas'),
+                      subtitle: Text('Escolher pessoas'),
                     ),
                   ),
                   PopupMenuItem(
@@ -564,6 +605,68 @@ class _PreviousMonthsDialogState extends State<_PreviousMonthsDialog> {
                         .toList(),
                   ),
           child: const Text('Gerar PDF'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PeopleSelectionDialog extends StatefulWidget {
+  const _PeopleSelectionDialog({required this.people});
+
+  final List<String> people;
+
+  @override
+  State<_PeopleSelectionDialog> createState() => _PeopleSelectionDialogState();
+}
+
+class _PeopleSelectionDialogState extends State<_PeopleSelectionDialog> {
+  final Set<String> _selected = {};
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Selecionar Contas'),
+      content: SizedBox(
+        width: 360,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 360),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Selecione as pessoas que deseja incluir no PDF.'),
+                const SizedBox(height: 12),
+                ...widget.people.map(
+                  (person) => CheckboxListTile(
+                    value: _selected.contains(person),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(person),
+                    onChanged: (checked) => setState(() {
+                      if (checked == true) {
+                        _selected.add(person);
+                      } else {
+                        _selected.remove(person);
+                      }
+                    }),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.pop(context, Set<String>.from(_selected)),
+          child: const Text('Baixar PDF'),
         ),
       ],
     );
